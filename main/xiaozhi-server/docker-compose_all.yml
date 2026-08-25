@@ -1,10 +1,33 @@
 # Docker安装全模块
 
-version: '3'
 services:
+  # HTTPS/WSS入口
+  nginx:
+    image: nginx:alpine
+    container_name: xiaozhi-esp32-server-nginx
+    depends_on:
+      - xiaozhi-esp32-server
+      - xiaozhi-esp32-server-web
+    restart: always
+    networks:
+      - default
+    ports:
+      - "${NGINX_HTTP_PORT:-8080}:8080"
+      - "${NGINX_HTTPS_PORT:-8443}:8443"
+      - "${NGINX_WS_PORT:-18080}:18080"
+      - "${NGINX_WSS_PORT:-18443}:18443"
+    environment:
+      - NGINX_HTTP_UPSTREAM=xiaozhi-esp32-server-web:8002
+      - NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-8443}
+      - NGINX_WSS_PORT=${NGINX_WSS_PORT:-18443}
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${NGINX_SSL_CERTIFICATE:-/etc/letsencrypt/live/xz.takecopter.cn/fullchain.pem}:/etc/nginx/ssl/fullchain.pem:ro
+      - ${NGINX_SSL_CERTIFICATE_KEY:-/etc/letsencrypt/live/xz.takecopter.cn/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
+
   # Server模块
   xiaozhi-esp32-server:
-    image: ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
+    image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest
     container_name: xiaozhi-esp32-server
     depends_on:
       - xiaozhi-esp32-server-db
@@ -29,7 +52,7 @@ services:
 
   # manager-api和manager-web模块
   xiaozhi-esp32-server-web:
-    image: ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:web_latest
+    image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:web_latest
     container_name: xiaozhi-esp32-server-web
     restart: always
     networks:

@@ -1,7 +1,7 @@
 # 部署架构图
 ![请参考-全模块安装架构图](../docs/images/deploy2.png)
 # 方式一：Docker运行全模块
-`0.8.2`版本开始，本项目发行的docker镜像只支持`x86架构`，如果需要在`arm64架构`的CPU上部署，可按照[这个教程](docker-build.md)在本机编译`arm64的镜像`。
+当前发布的 server 和 web Docker 镜像同时支持 `linux/amd64` 与 `linux/arm64`。Mac mini M4 可通过 Docker Desktop 直接运行 ARM64 镜像。
 
 ## 1. 安装docker
 
@@ -15,20 +15,36 @@ docker 安装全模块有两种方式，你可以[使用懒人脚本](./Deployme
 ### 1.1 懒人脚本
 部署简便，可以参考[视频教程](https://www.bilibili.com/video/BV17bbvzHExd/) ，文字版教程如下：
 > [!NOTE]  
-> 暂且只支持Ubuntu服务器一键部署，其他系统未尝试，可能会有一些奇怪的bug
+> 脚本可在 Debian/Ubuntu 自动安装 Docker；macOS 请先安装并启动 Docker Desktop，并通过 `INSTALL_DIR` 指定可写目录。
 
-使用SSH工具连接到服务器，以root权限执行如下脚本
+将 `xz.takecopter.cn` 的证书放到默认目录后，使用 SSH 工具连接服务器并执行：
 ```bash
-sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/main/docker-setup.sh)"
+curl -fLO https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/setup.sh
+chmod +x setup.sh
+sudo ./setup.sh
 ```
 
 脚本会自动完成以下操作：
 > 1. 安装Docker
-> 2. 配置镜像源
-> 3. 下载/拉取镜像
-> 4. 下载语音识别模型文件
-> 5. 引导配置服务端
+> 2. 下载/拉取镜像
+> 3. 下载语音识别模型文件
+> 4. 配置 Nginx HTTPS/WSS 入口
 >
+
+脚本不会修改 Docker registry mirror。也可以预先在 `/opt/xiaozhi-server/.env` 中指定证书文件路径：
+
+```dotenv
+NGINX_SSL_CERTIFICATE=/etc/letsencrypt/live/xz.takecopter.cn/fullchain.pem
+NGINX_SSL_CERTIFICATE_KEY=/etc/letsencrypt/live/xz.takecopter.cn/privkey.pem
+NGINX_HTTP_PORT=8080
+NGINX_HTTPS_PORT=8443
+NGINX_WS_PORT=18080
+NGINX_WSS_PORT=18443
+```
+
+这里只保存私钥的宿主机路径，不要把私钥正文写入 `.env` 或提交到 Git。
+
+Nginx 会将 `http://xz.takecopter.cn:8080` 重定向到 `https://xz.takecopter.cn:8443`，并将 `ws://xz.takecopter.cn:18080` 重定向到 `wss://xz.takecopter.cn:18443`。
 
 执行完成后简单配置后，再参照[4. 运行程序](#4. 运行程序)和[5.重启xiaozhi-esp32-server](#5.重启xiaozhi-esp32-server)里提到的最重要的3件事情，完成3这三项配置后即可使用。
 
@@ -38,7 +54,7 @@ sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/x
 
 安装完后，你需要为这个项目找一个安放配置文件的目录，例如我们可以新建一个文件夹叫`xiaozhi-server`。
 
-创建好目录后，你需要在`xiaozhi-server`下面创建`data`文件夹和`models`文件夹，`models`下面还要再创建`SenseVoiceSmall`文件夹。
+创建好目录后，你需要在 `xiaozhi-server` 下面创建 `data`、`models/SenseVoiceSmall` 和 `nginx` 文件夹。
 
 最终目录结构如下所示：
 
@@ -46,7 +62,8 @@ sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/x
 xiaozhi-server
   ├─ data
   ├─ models
-     ├─ SenseVoiceSmall
+  │  └─ SenseVoiceSmall
+  └─ nginx
 ```
 
 #### 1.2.2 下载语音识别模型文件
@@ -62,7 +79,7 @@ xiaozhi-server
 
 #### 1.2.3 下载配置文件
 
-你需要下载两个配置文件：`docker-compose_all.yaml` 和 `config_from_api.yaml`。需要从项目仓库下载这两个文件。
+你需要下载 `docker-compose_all.yml`、`config_from_api.yaml`、`nginx/default.conf.template` 和 `.env.example`。
 
 ##### 1.2.3.1 下载 docker-compose_all.yaml
 
@@ -71,7 +88,7 @@ xiaozhi-server
 在页面的右侧找到名称为`RAW`按钮，在`RAW`按钮的旁边，找到下载的图标，点击下载按钮，下载`docker-compose_all.yml`文件。 把文件下载到你的
 `xiaozhi-server`中。
 
-或者直接执行 `wget https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/docker-compose_all.yml` 下载。
+或者直接执行 `wget https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/docker-compose_all.yml` 下载。
 
 下载完后，回到本教程继续往下。
 
@@ -82,18 +99,30 @@ xiaozhi-server
 在页面的右侧找到名称为`RAW`按钮，在`RAW`按钮的旁边，找到下载的图标，点击下载按钮，下载`config_from_api.yaml`文件。 把文件下载到你的
 `xiaozhi-server`下面的`data`文件夹中，然后把`config_from_api.yaml`文件重命名为`.config.yaml`。
 
-或者直接执行 `wget https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/config_from_api.yaml` 下载保存。
+或者直接执行 `wget https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/config_from_api.yaml` 下载保存。
+
+##### 1.2.3.3 下载 Nginx 配置并指定证书
+
+```bash
+wget -O nginx/default.conf.template https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/nginx/default.conf.template
+wget -O .env https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/.env.example
+```
+
+编辑 `.env`，填写证书和私钥在宿主机上的绝对路径，格式参考本页上方示例。
 
 下载完配置文件后，我们确认一下整个`xiaozhi-server`里面的文件如下所示：
 
 ```
 xiaozhi-server
+  ├─ .env
   ├─ docker-compose_all.yml
   ├─ data
-    ├─ .config.yaml
+  │  └─ .config.yaml
   ├─ models
-     ├─ SenseVoiceSmall
-       ├─ model.pt
+  │  └─ SenseVoiceSmall
+  │     └─ model.pt
+  └─ nginx
+     └─ default.conf.template
 ```
 
 如果你的文件目录结构也是上面的，就继续往下。如果不是，你就再仔细看看是不是漏操作了什么。
@@ -120,8 +149,8 @@ docker rm xiaozhi-esp32-server-db
 docker stop xiaozhi-esp32-server-redis
 docker rm xiaozhi-esp32-server-redis
 
-docker rmi ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
-docker rmi ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:web_latest
+docker rmi ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest
+docker rmi ghcr.io/xinnan-tech/xiaozhi-esp32-server:web_latest
 ```
 
 ## 4. 运行程序
@@ -206,13 +235,15 @@ docker logs -f xiaozhi-esp32-server
 
 OTA接口：
 ```
-http://你宿主机局域网的ip:8002/xiaozhi/ota/
+https://xz.takecopter.cn:8443/xiaozhi/ota/
 ```
 
 Websocket接口：
 ```
-ws://你宿主机的ip:8000/xiaozhi/v1/
+wss://xz.takecopter.cn:18443/xiaozhi/v1/
 ```
+
+同时将 `data/.config.yaml` 中的 `server.vision_explain` 配置为 `https://xz.takecopter.cn:8443/mcp/vision/explain`。
 
 ### 第三件重要的事情
 

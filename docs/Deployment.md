@@ -2,7 +2,7 @@
 ![请参考-最简化架构图](../docs/images/deploy1.png)
 # 方式一：Docker只运行Server
 
-`0.8.2`版本开始，本项目发行的docker镜像只支持`x86架构`，如果需要在`arm64架构`的CPU上部署，可按照[这个教程](docker-build.md)在本机编译`arm64的镜像`。
+当前发布的 server Docker 镜像同时支持 `linux/amd64` 与 `linux/arm64`。Mac mini M4 可通过 Docker Desktop 直接运行 ARM64 镜像。
 
 ## 1. 安装docker
 
@@ -16,7 +16,7 @@
 
 安装完docker后，你需要为这个项目找一个安放配置文件的目录，例如我们可以新建一个文件夹叫`xiaozhi-server`。
 
-创建好目录后，你需要在`xiaozhi-server`下面创建`data`文件夹和`models`文件夹，`models`下面还要再创建`SenseVoiceSmall`文件夹。
+创建好目录后，你需要创建 `data`、`models/SenseVoiceSmall` 和 `nginx` 文件夹。
 
 最终目录结构如下所示：
 
@@ -24,7 +24,8 @@
 xiaozhi-server
   ├─ data
   ├─ models
-     ├─ SenseVoiceSmall
+  │  └─ SenseVoiceSmall
+  └─ nginx
 ```
 
 #### 1.1.2 下载语音识别模型文件
@@ -36,7 +37,7 @@ xiaozhi-server
 
 #### 1.1.3 下载配置文件
 
-你需要下载两个配置文件：`docker-compose.yaml` 和 `config.yaml`。需要从项目仓库下载这两个文件。
+你需要下载 `docker-compose.yml`、`config.yaml`、`nginx/default.conf.template` 和 `.env.example`。
 
 ##### 1.1.3.1 下载 docker-compose.yaml
 
@@ -56,14 +57,19 @@ xiaozhi-server
 
 下载完配置文件后，我们确认一下整个`xiaozhi-server`里面的文件如下所示：
 
+下载 [Nginx 配置](../main/xiaozhi-server/nginx/default.conf.template)，并将 [.env.example](../main/xiaozhi-server/.env.example) 复制为 `.env`。在 `.env` 中填写证书和私钥的宿主机绝对路径。
+
 ```
 xiaozhi-server
+  ├─ .env
   ├─ docker-compose.yml
   ├─ data
-    ├─ .config.yaml
+  │  └─ .config.yaml
   ├─ models
-     ├─ SenseVoiceSmall
-       ├─ model.pt
+  │  └─ SenseVoiceSmall
+  │     └─ model.pt
+  └─ nginx
+     └─ default.conf.template
 ```
 
 如果你的文件目录结构也是上面的，就继续往下。如果不是，你就再仔细看看是不是漏操作了什么。
@@ -105,8 +111,7 @@ docker stop xiaozhi-esp32-server
 docker rm xiaozhi-esp32-server
 docker stop xiaozhi-esp32-server-web
 docker rm xiaozhi-esp32-server-web
-docker rmi ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest
-docker rmi ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:web_latest
+docker rmi ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest
 ```
 
 5.3、重新按docker方式部署
@@ -248,8 +253,7 @@ LLM:
 正常来说，如果您是通过源码运行本项目，日志会有你的接口地址信息。
 但是如果你用docker部署，那么你的日志里给出的接口地址信息就不是真实的接口地址。
 
-最正确的方法，是根据电脑的局域网IP来确定你的接口地址。
-如果你的电脑的局域网IP比如是`192.168.1.25`，那么你的接口地址就是：`ws://192.168.1.25:8000/xiaozhi/v1/`，对应的OTA地址就是：`http://192.168.1.25:8003/xiaozhi/ota/`。
+Docker HTTPS 部署时，对外接口地址为 `wss://xz.takecopter.cn:18443/xiaozhi/v1/`，OTA 地址为 `https://xz.takecopter.cn:8443/xiaozhi/ota/`，视觉分析地址为 `https://xz.takecopter.cn:8443/mcp/vision/explain`。HTTP `8080` 和 WS `18080` 分别重定向到 HTTPS `8443` 和 WSS `18443`。
 
 这个信息很有用的，后面`编译esp32固件`需要用到。
 
