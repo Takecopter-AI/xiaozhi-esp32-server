@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/xiaozhi-server}"
 RAW_BASE_URL="${XIAOZHI_RAW_BASE_URL:-https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ENV_FILE="$INSTALL_DIR/.env"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose_all.yml"
 HTTP_PORT="${NGINX_HTTP_PORT:-8080}"
@@ -11,7 +12,7 @@ WS_PORT="${NGINX_WS_PORT:-18080}"
 WSS_PORT="${NGINX_WSS_PORT:-18443}"
 
 die() {
-    echo "错误: $*" >&2
+    echo "Error: $*" >&2
     exit 1
 }
 
@@ -26,7 +27,7 @@ DOMAIN_FILE="${XZ_DOMAIN_FILE:-$USER_HOME/.xz_domain}"
 if [ -f "$DOMAIN_FILE" ]; then
     DOMAIN="$(tr '[:upper:]' '[:lower:]' < "$DOMAIN_FILE" | tr -d '\r\n')"
     if [[ ! "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
-        die "域名文件内容无效: $DOMAIN_FILE"
+        die "Invalid domain in file: $DOMAIN_FILE"
     fi
 fi
 
@@ -40,23 +41,49 @@ HTTPS_ENABLED=true
 NGINX_CONFIG_TEMPLATE=./nginx/default.conf.template
 
 download() {
-    local source_url="$1"
-    local target_path="$2"
+    local description="$1"
+    local source_url="$2"
+    local target_path="$3"
     local temporary_path="${target_path}.tmp"
 
-    curl -fL --retry 3 "$source_url" -o "$temporary_path"
+    echo "Downloading: $description"
+    echo "  Source: $source_url"
+    echo "  Destination: $target_path"
+    if ! curl -fL --retry 3 "$source_url" -o "$temporary_path"; then
+        rm -f "$temporary_path"
+        die "Failed to download: $description ($source_url)"
+    fi
     mv "$temporary_path" "$target_path"
 }
 
+install_project_file() {
+    local description="$1"
+    local relative_path="$2"
+    local target_path="$3"
+    local local_path="$SCRIPT_DIR/$relative_path"
+
+    if [ -f "$local_path" ]; then
+        echo "Installing: $description"
+        echo "  Source: $local_path"
+        echo "  Destination: $target_path"
+        if [ ! -e "$target_path" ] || [ ! "$local_path" -ef "$target_path" ]; then
+            cp "$local_path" "$target_path"
+        fi
+        return
+    fi
+
+    download "$description" "$RAW_BASE_URL/$relative_path" "$target_path"
+}
+
 install_docker() {
-    [ "$(uname -s)" = "Linux" ] || die "请先安装并启动 Docker Desktop"
-    [ "$(id -u)" -eq 0 ] || die "安装 Docker 需要 root 权限"
-    [ -f /etc/os-release ] || die "无法识别 Linux 发行版"
+    [ "$(uname -s)" = "Linux" ] || die "Install and start Docker Desktop first"
+    [ "$(id -u)" -eq 0 ] || die "Root privileges are required to install Docker"
+    [ -f /etc/os-release ] || die "Unable to identify the Linux distribution"
 
     . /etc/os-release
     case "$ID" in
         ubuntu|debian) ;;
-        *) die "自动安装 Docker 仅支持 Debian/Ubuntu" ;;
+        *) die "Automatic Docker installation supports Debian and Ubuntu only" ;;
     esac
 
     apt-get update
@@ -84,9 +111,9 @@ configure_https() {
         return
     fi
 
-    echo "未找到 HTTPS 证书: ${CERTIFICATE_PATH:-未配置}"
+    echo "HTTPS certificate not found: ${CERTIFICATE_PATH:-not configured}"
     if [ -t 0 ]; then
-        read -r -p "请输入 fullchain.pem 的绝对路径，直接回车则仅部署 HTTP/WS: " INPUT_CERTIFICATE_PATH
+        read -r -p "Enter the absolute path to fullchain.pem, or press Enter to deploy HTTP/WS only: " INPUT_CERTIFICATE_PATH
     else
         INPUT_CERTIFICATE_PATH=""
     fi
@@ -97,11 +124,11 @@ configure_https() {
         return
     fi
 
-    read -r -p "请输入 privkey.pem 的绝对路径: " INPUT_CERTIFICATE_KEY_PATH
+    read -r -p "Enter the absolute path to privkey.pem: " INPUT_CERTIFICATE_KEY_PATH
     CERTIFICATE_PATH="$INPUT_CERTIFICATE_PATH"
     CERTIFICATE_KEY_PATH="$INPUT_CERTIFICATE_KEY_PATH"
-    [ -f "$CERTIFICATE_PATH" ] || die "SSL 证书不存在: $CERTIFICATE_PATH"
-    [ -f "$CERTIFICATE_KEY_PATH" ] || die "SSL 私钥不存在: $CERTIFICATE_KEY_PATH"
+    [ -f "$CERTIFICATE_PATH" ] || die "SSL certificate not found: $CERTIFICATE_PATH"
+    [ -f "$CERTIFICATE_KEY_PATH" ] || die "SSL private key not found: $CERTIFICATE_KEY_PATH"
 }
 
 write_env_file() {
@@ -119,7 +146,7 @@ write_env_file() {
 configure_https
 
 command -v curl >/dev/null 2>&1 || {
-    [ "$(uname -s)" = "Linux" ] && [ "$(id -u)" -eq 0 ] || die "请先安装 curl"
+    [ "$(uname -s)" = "Linux" ] && [ "$(id -u)" -eq 0 ] || die "Install curl first"
     apt-get update
     apt-get install -y curl
 }
@@ -127,22 +154,23 @@ command -v curl >/dev/null 2>&1 || {
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
     install_docker
 fi
-docker info >/dev/null 2>&1 || die "Docker daemon 未运行"
+docker info >/dev/null 2>&1 || die "Docker daemon is not running"
 
 mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/models/SenseVoiceSmall" "$INSTALL_DIR/nginx"
 write_env_file
 
-download "$RAW_BASE_URL/main/xiaozhi-server/docker-compose_all.yml" "$COMPOSE_FILE"
-download "$RAW_BASE_URL/main/xiaozhi-server/nginx/default.conf.template" "$INSTALL_DIR/nginx/default.conf.template"
-download "$RAW_BASE_URL/main/xiaozhi-server/nginx/http.conf.template" "$INSTALL_DIR/nginx/http.conf.template"
-download "$RAW_BASE_URL/main/xiaozhi-server/.env.example" "$INSTALL_DIR/.env.example"
+install_project_file "Docker Compose configuration" "main/xiaozhi-server/docker-compose_all.yml" "$COMPOSE_FILE"
+install_project_file "HTTPS Nginx configuration" "main/xiaozhi-server/nginx/default.conf.template" "$INSTALL_DIR/nginx/default.conf.template"
+install_project_file "HTTP Nginx configuration" "main/xiaozhi-server/nginx/http.conf.template" "$INSTALL_DIR/nginx/http.conf.template"
+install_project_file "Environment variable example" "main/xiaozhi-server/.env.example" "$INSTALL_DIR/.env.example"
 
 if [ ! -f "$INSTALL_DIR/data/.config.yaml" ]; then
-    download "$RAW_BASE_URL/main/xiaozhi-server/config_from_api.yaml" "$INSTALL_DIR/data/.config.yaml"
+    install_project_file "Server configuration" "main/xiaozhi-server/config_from_api.yaml" "$INSTALL_DIR/data/.config.yaml"
 fi
 
 if [ ! -f "$INSTALL_DIR/models/SenseVoiceSmall/model.pt" ]; then
-    download "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt" \
+    download "SenseVoiceSmall speech recognition model" \
+        "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt" \
         "$INSTALL_DIR/models/SenseVoiceSmall/model.pt"
 fi
 
@@ -150,9 +178,9 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
 
 if [ "$HTTPS_ENABLED" = true ]; then
-    DISPLAY_HOST="${DOMAIN:-你的域名}"
-    echo "部署已启动：HTTPS https://$DISPLAY_HOST:$HTTPS_PORT/，WebSocket wss://$DISPLAY_HOST:$WSS_PORT/xiaozhi/v1/"
+    DISPLAY_HOST="${DOMAIN:-your-domain}"
+    echo "Deployment started: HTTPS https://$DISPLAY_HOST:$HTTPS_PORT/, WebSocket wss://$DISPLAY_HOST:$WSS_PORT/xiaozhi/v1/"
 else
-    echo "部署已启动：HTTP http://<服务器地址>:$HTTP_PORT/，WebSocket ws://<服务器地址>:$WS_PORT/xiaozhi/v1/"
+    echo "Deployment started: HTTP http://<server-address>:$HTTP_PORT/, WebSocket ws://<server-address>:$WS_PORT/xiaozhi/v1/"
 fi
-echo "首次部署后仍需在 $INSTALL_DIR/data/.config.yaml 中配置 manager-api.secret。"
+echo "After the first deployment, configure manager-api.secret in $INSTALL_DIR/data/.config.yaml."
