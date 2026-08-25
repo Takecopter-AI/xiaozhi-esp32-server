@@ -17,9 +17,9 @@ services:
       - NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-8443}
       - NGINX_WSS_PORT=${NGINX_WSS_PORT:-18443}
     volumes:
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ${NGINX_SSL_CERTIFICATE:-/etc/letsencrypt/live/xz.takecopter.cn/fullchain.pem}:/etc/nginx/ssl/fullchain.pem:ro
-      - ${NGINX_SSL_CERTIFICATE_KEY:-/etc/letsencrypt/live/xz.takecopter.cn/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
+      - ${NGINX_CONFIG_TEMPLATE:-./nginx/default.conf.template}:/etc/nginx/templates/default.conf.template:ro
+      - ${NGINX_SSL_CERTIFICATE:?Run setup.sh to configure the certificate path}:/etc/nginx/ssl/fullchain.pem:ro
+      - ${NGINX_SSL_CERTIFICATE_KEY:?Run setup.sh to configure the certificate key path}:/etc/nginx/ssl/privkey.pem:ro
 
   xiaozhi-esp32-server:
     image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_latest

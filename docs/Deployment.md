@@ -37,7 +37,7 @@ xiaozhi-server
 
 #### 1.1.3 下载配置文件
 
-你需要下载 `docker-compose.yml`、`config.yaml`、`nginx/default.conf.template` 和 `.env.example`。
+你需要下载 `docker-compose.yml`、`config.yaml`、两个 Nginx 模板和 `.env.example`。
 
 ##### 1.1.3.1 下载 docker-compose.yaml
 
@@ -57,7 +57,7 @@ xiaozhi-server
 
 下载完配置文件后，我们确认一下整个`xiaozhi-server`里面的文件如下所示：
 
-下载 [Nginx 配置](../main/xiaozhi-server/nginx/default.conf.template)，并将 [.env.example](../main/xiaozhi-server/.env.example) 复制为 `.env`。在 `.env` 中填写证书和私钥的宿主机绝对路径。
+下载 [HTTPS Nginx 配置](../main/xiaozhi-server/nginx/default.conf.template) 和 [HTTP Nginx 配置](../main/xiaozhi-server/nginx/http.conf.template)，并将 [.env.example](../main/xiaozhi-server/.env.example) 复制为 `.env`。在 `.env` 中选择模板并填写证书路径。
 
 ```
 xiaozhi-server
@@ -69,7 +69,8 @@ xiaozhi-server
   │  └─ SenseVoiceSmall
   │     └─ model.pt
   └─ nginx
-     └─ default.conf.template
+     ├─ default.conf.template
+     └─ http.conf.template
 ```
 
 如果你的文件目录结构也是上面的，就继续往下。如果不是，你就再仔细看看是不是漏操作了什么。
@@ -253,7 +254,7 @@ LLM:
 正常来说，如果您是通过源码运行本项目，日志会有你的接口地址信息。
 但是如果你用docker部署，那么你的日志里给出的接口地址信息就不是真实的接口地址。
 
-Docker HTTPS 部署时，对外接口地址为 `wss://xz.takecopter.cn:18443/xiaozhi/v1/`，OTA 地址为 `https://xz.takecopter.cn:8443/xiaozhi/ota/`，视觉分析地址为 `https://xz.takecopter.cn:8443/mcp/vision/explain`。HTTP `8080` 和 WS `18080` 分别重定向到 HTTPS `8443` 和 WSS `18443`。
+Docker HTTPS 部署时，对外接口地址为 `wss://你的域名:18443/xiaozhi/v1/`，OTA 地址为 `https://你的域名:8443/xiaozhi/ota/`，视觉分析地址为 `https://你的域名:8443/mcp/vision/explain`。HTTP `8080` 和 WS `18080` 分别重定向到 HTTPS `8443` 和 WSS `18443`。
 
 这个信息很有用的，后面`编译esp32固件`需要用到。
 

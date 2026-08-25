@@ -17,10 +17,13 @@ docker 安装全模块有两种方式，你可以[使用懒人脚本](./Deployme
 > [!NOTE]  
 > 脚本可在 Debian/Ubuntu 自动安装 Docker；macOS 请先安装并启动 Docker Desktop，并通过 `INSTALL_DIR` 指定可写目录。
 
-将 `xz.takecopter.cn` 的证书放到默认目录后，使用 SSH 工具连接服务器并执行：
+如需 HTTPS，先将域名写入 `~/.xz_domain` 并申请证书；仅部署 HTTP 时可跳过证书申请：
 ```bash
+printf '%s\n' 'xz.takecopter.cn' > ~/.xz_domain
+curl -fLO https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/request-letsencrypt-cert.py
 curl -fLO https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/setup.sh
-chmod +x setup.sh
+chmod +x request-letsencrypt-cert.py setup.sh
+./request-letsencrypt-cert.py
 sudo ./setup.sh
 ```
 
@@ -28,12 +31,15 @@ sudo ./setup.sh
 > 1. 安装Docker
 > 2. 下载/拉取镜像
 > 3. 下载语音识别模型文件
-> 4. 配置 Nginx HTTPS/WSS 入口
+> 4. 配置 Nginx HTTP/WS 或 HTTPS/WSS 入口
 >
 
-脚本不会修改 Docker registry mirror。也可以预先在 `/opt/xiaozhi-server/.env` 中指定证书文件路径：
+脚本不会修改 Docker registry mirror。`setup.sh` 会根据 `~/.xz_domain` 生成 `/opt/xiaozhi-server/.env`：
 
 ```dotenv
+ENABLE_HTTPS=true
+XZ_DOMAIN=xz.takecopter.cn
+NGINX_CONFIG_TEMPLATE=./nginx/default.conf.template
 NGINX_SSL_CERTIFICATE=/etc/letsencrypt/live/xz.takecopter.cn/fullchain.pem
 NGINX_SSL_CERTIFICATE_KEY=/etc/letsencrypt/live/xz.takecopter.cn/privkey.pem
 NGINX_HTTP_PORT=8080
@@ -44,7 +50,9 @@ NGINX_WSS_PORT=18443
 
 这里只保存私钥的宿主机路径，不要把私钥正文写入 `.env` 或提交到 Git。
 
-Nginx 会将 `http://xz.takecopter.cn:8080` 重定向到 `https://xz.takecopter.cn:8443`，并将 `ws://xz.takecopter.cn:18080` 重定向到 `wss://xz.takecopter.cn:18443`。
+如果找不到证书，`setup.sh` 会提示输入 `fullchain.pem` 和 `privkey.pem` 的绝对路径；在第一个提示中直接回车，将改为仅部署 HTTP/WS。非交互部署可使用 `sudo ENABLE_HTTPS=false ./setup.sh`。
+
+Nginx 会将 `http://你的域名:8080` 重定向到 `https://你的域名:8443`，并将 `ws://你的域名:18080` 重定向到 `wss://你的域名:18443`。
 
 执行完成后简单配置后，再参照[4. 运行程序](#4. 运行程序)和[5.重启xiaozhi-esp32-server](#5.重启xiaozhi-esp32-server)里提到的最重要的3件事情，完成3这三项配置后即可使用。
 
@@ -79,7 +87,7 @@ xiaozhi-server
 
 #### 1.2.3 下载配置文件
 
-你需要下载 `docker-compose_all.yml`、`config_from_api.yaml`、`nginx/default.conf.template` 和 `.env.example`。
+你需要下载 `docker-compose_all.yml`、`config_from_api.yaml`、两个 Nginx 模板和 `.env.example`。
 
 ##### 1.2.3.1 下载 docker-compose_all.yaml
 
@@ -105,6 +113,7 @@ xiaozhi-server
 
 ```bash
 wget -O nginx/default.conf.template https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/nginx/default.conf.template
+wget -O nginx/http.conf.template https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/nginx/http.conf.template
 wget -O .env https://raw.githubusercontent.com/Takecopter-AI/xiaozhi-esp32-server/main/main/xiaozhi-server/.env.example
 ```
 
@@ -122,7 +131,8 @@ xiaozhi-server
   │  └─ SenseVoiceSmall
   │     └─ model.pt
   └─ nginx
-     └─ default.conf.template
+     ├─ default.conf.template
+     └─ http.conf.template
 ```
 
 如果你的文件目录结构也是上面的，就继续往下。如果不是，你就再仔细看看是不是漏操作了什么。
@@ -235,15 +245,15 @@ docker logs -f xiaozhi-esp32-server
 
 OTA接口：
 ```
-https://xz.takecopter.cn:8443/xiaozhi/ota/
+https://你的域名:8443/xiaozhi/ota/
 ```
 
 Websocket接口：
 ```
-wss://xz.takecopter.cn:18443/xiaozhi/v1/
+wss://你的域名:18443/xiaozhi/v1/
 ```
 
-同时将 `data/.config.yaml` 中的 `server.vision_explain` 配置为 `https://xz.takecopter.cn:8443/mcp/vision/explain`。
+同时将 `data/.config.yaml` 中的 `server.vision_explain` 配置为 `https://你的域名:8443/mcp/vision/explain`。
 
 ### 第三件重要的事情
 

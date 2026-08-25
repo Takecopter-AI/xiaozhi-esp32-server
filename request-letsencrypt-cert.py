@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import pwd
 import re
 import shutil
 import subprocess
@@ -40,10 +41,20 @@ def run(command, **kwargs):
     return subprocess.run(command, check=True, text=True, **kwargs)
 
 
+def user_home():
+    sudo_user = os.environ.get("SUDO_USER")
+    if os.geteuid() == 0 and sudo_user and sudo_user != "root":
+        try:
+            return Path(pwd.getpwnam(sudo_user).pw_dir)
+        except KeyError:
+            pass
+    return Path.home()
+
+
 def main():
     print(f"Default email: {DEFAULT_EMAIL}")
 
-    domain_file = Path.home() / ".xz_domain"
+    domain_file = user_home() / ".xz_domain"
     try:
         if domain_file.is_file():
             domain = read_domain_file(domain_file)
