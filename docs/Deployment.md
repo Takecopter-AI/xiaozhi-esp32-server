@@ -254,7 +254,7 @@ LLM:
 正常来说，如果您是通过源码运行本项目，日志会有你的接口地址信息。
 但是如果你用docker部署，那么你的日志里给出的接口地址信息就不是真实的接口地址。
 
-Docker HTTPS 部署时，对外接口地址为 `wss://你的域名:18443/xiaozhi/v1/`，OTA 地址为 `https://你的域名:8443/xiaozhi/ota/`，视觉分析地址为 `https://你的域名:8443/mcp/vision/explain`。HTTP `8080` 和 WS `18080` 分别重定向到 HTTPS `8443` 和 WSS `18443`。
+Docker HTTPS 部署时，对外接口地址为 `wss://你的域名:18443/xiaozhi/v1/`，OTA 地址为 `https://你的域名:8443/xiaozhi/ota/`，视觉分析地址为 `https://你的域名:8443/mcp/vision/explain`。HTTP `8008` 和 WS `18080` 分别重定向到 HTTPS `8443` 和 WSS `18443`。
 
 这个信息很有用的，后面`编译esp32固件`需要用到。
 

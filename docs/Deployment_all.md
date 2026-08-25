@@ -32,9 +32,10 @@ sudo ./setup.sh
 > 2. 下载/拉取镜像
 > 3. 下载语音识别模型文件
 > 4. 配置 Nginx HTTP/WS 或 HTTPS/WSS 入口
+> 5. 初始化 manager-api，自动写入容器内地址和 `server.secret`
 >
 
-脚本不会修改 Docker registry mirror。`setup.sh` 会根据 `~/.xz_domain` 生成 `/opt/xiaozhi-server/.env`：
+脚本不会修改 Docker registry mirror。Linux 默认安装到 `/opt/xiaozhi-server`，macOS 默认安装到 `~/.xiaozhi-server`。`setup.sh` 会根据 `~/.xz_domain` 生成 `.env`：
 
 ```dotenv
 ENABLE_HTTPS=true
@@ -42,7 +43,7 @@ XZ_DOMAIN=xz.takecopter.cn
 NGINX_CONFIG_TEMPLATE=./nginx/default.conf.template
 NGINX_SSL_CERTIFICATE=/etc/letsencrypt/live/xz.takecopter.cn/fullchain.pem
 NGINX_SSL_CERTIFICATE_KEY=/etc/letsencrypt/live/xz.takecopter.cn/privkey.pem
-NGINX_HTTP_PORT=8080
+NGINX_HTTP_PORT=8008
 NGINX_HTTPS_PORT=8443
 NGINX_WS_PORT=18080
 NGINX_WSS_PORT=18443
@@ -52,7 +53,9 @@ NGINX_WSS_PORT=18443
 
 如果找不到证书，`setup.sh` 会提示输入 `fullchain.pem` 和 `privkey.pem` 的绝对路径；在第一个提示中直接回车，将改为仅部署 HTTP/WS。非交互部署可使用 `sudo ENABLE_HTTPS=false ./setup.sh`。
 
-Nginx 会将 `http://你的域名:8080` 重定向到 `https://你的域名:8443`，并将 `ws://你的域名:18080` 重定向到 `wss://你的域名:18443`。
+macOS 中即使使用 `sudo`，脚本也会将安装目录设置为原用户可读写，并将证书复制到 Docker 可共享的安装目录。
+
+Nginx 会将 `http://你的域名:8008` 重定向到 `https://你的域名:8443`，并将 `ws://你的域名:18080` 重定向到 `wss://你的域名:18443`。
 
 执行完成后简单配置后，再参照[4. 运行程序](#4. 运行程序)和[5.重启xiaozhi-esp32-server](#5.重启xiaozhi-esp32-server)里提到的最重要的3件事情，完成3这三项配置后即可使用。
 
